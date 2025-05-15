@@ -1,71 +1,84 @@
-import keyboard
 import pyautogui as pg
 import time
-import signal
-import sys
-
-"""
-Warning: 该脚本仅模拟点击, 无任何判断逻辑(即仍需人工审核)aa
-"""
-
-# 可自行更改, 建议不要使用字母键, 最好使用键盘上比较灵敏的按键
-continue_run = 'a'  # 继续执行
-pause_run = '\x1b'  # 暂停程序，设置为Esc键对应的字符编码
-end_run = 'd'  # 退出程序
-is_paused = False  # 新增全局变量，用于记录程序是否处于暂停状态，初始化为False表示未暂停
-
-# 定义控制程序暂停和继续执行的函数
-def pause_program():
-    global is_paused
-    is_paused = True
+import keyboard
+import cv2
 
 
-def continue_program():
-    global is_paused
-    is_paused = False
+def find_template_offset(main_image_path, template_image_path, threshold=0.8):
+	# 读取图像
+	main_image = cv2.imread(main_image_path)
+	template = cv2.imread(template_image_path)
 
-# 定义函数来处理退出逻辑
-def exit_program():
-    print("Exiting program...")
-    sys.exit()
+	if main_image is None or template is None:
+		return None
 
-def func1():
-    # 设定检测新数据出现的坐标（这里已按你提供的坐标设置，你可按需调整）
-    check_x, check_y = 1782, 491
-    # 设定初始的目标颜色
-    target_color = (255, 255, 255)
+	result = cv2.matchTemplate(main_image, template, cv2.TM_CCOEFF_NORMED)
+	min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-    # while True:
-    #     # 第一步：点击初始位置（假设这个操作会触发新数据出现）
-    #     pg.moveTo(1782, 491, duration=0.5)
-    #     pg.click(button='left')
-    #     time.sleep(0.5)  # 等待一段时间，假设新数据在这期间出现并加载完成
-    #
-    #     # 获取检测坐标点的当前颜色 目标坐标点的颜色发生变化，则退出循环
-    #     current_color = pg.pixel(check_x, check_y)
-    #     if current_color != target_color:
-    #         break
+	if max_val >= threshold:
+		max_loc[0] += 10
+		max_loc[1] += 10
+		return max_loc
+	else:
+		return [0, 0]
 
-    keyboard.on_press_key(pause_run, lambda _: pause_program()) # 暂停键（Esc）
-    keyboard.on_press_key(continue_run, lambda _: continue_program()) # 继续键（‘a’）
-
-    while True:
-        if is_paused:
-            time.sleep(0.5)  # 处于暂停状态时，短暂等待一下再检查状态，避免过度占用CPU资源
-            continue
-        # 第二步：点击新数据出现后的第一个新位置（假设坐标为 (1800, 400)）
-        pg.moveTo(1776, 490, duration=0.1)
-        pg.click(button='left')
-        time.sleep(0.5)  # 停顿一下，确保点击生效，也可以根据实际情况调整等待时间
-
-        # 第三步：点击另一个新位置（假设坐标为 (1900, 500)）
-        pg.moveTo(1182, 251, duration=0.5)
-        pg.click(button='left')
-        time.sleep(0.5)
+def is_black_pixel_in_region(x, y, width, height):
+	black_count = 0
+	for i in range(x, x + width):
+		for j in range(y, y + height):
+			color = pg.pixel(i, j)
+			if color[0] < 50 and color[1] < 50 and color[2] < 50:
+				black_count += 1
+				if black_count > 0:
+					return True
+	return False
 
 
+def auto_pass():
+	query_pos = find_template_offset("file/full_screen.png", "file/query.png")
+	count = 0
+	while True:
+		pg.moveTo(1780, 485, duration=0.1)
+		pg.click(button='left')
+		time.sleep(0.3)
+		pg.moveTo(1180, 250, duration=0.1)
+		pg.click(button='left')
 
+		pg.moveTo(680, 360, duration=0.1)
+		pg.click(button='left')
+		count += 1
+
+		wait_time = 1
+		while wait_time > 0:
+			if keyboard.is_pressed("a"):  # a键暂停，s键继续，d键退出
+				keyboard.wait("s")
+			elif keyboard.is_pressed("d"):
+				return
+			time.sleep(0.1)
+			wait_time -= 0.1
+
+		if count % 5 == 0:
+			pg.moveTo(query_pos[0], query_pos[1], duration=0.1)
+			pg.click(button='left')
+			time.sleep(1)
+
+			if not is_black_pixel_in_region(245, 485, 5, 5):
+				while True:
+					pg.moveTo(1760, 350, duration=0.1)
+					pg.click(button='left')
+
+					wait_time = 2
+					while wait_time > 0:
+						if keyboard.is_pressed("a"):  # a键暂停，s键继续，d键退出
+							keyboard.wait("s")
+						elif keyboard.is_pressed("d"):
+							return
+						time.sleep(0.1)
+						wait_time -= 0.1
+
+					if is_black_pixel_in_region(245, 485, 5, 5):
+						break
 
 
 if __name__ == "__main__":
-    func1()
+	auto_pass()
